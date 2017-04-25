@@ -8,10 +8,8 @@
 #include <string.h>
 
 static int get_color(cc_allocator_t *allocator, void *addr){
-    uint64_t pfn_index = HPAGE_DIFF(allocator->zone->addr, addr);
-    uint64_t pfn = allocator->zone->pfn_map[pfn_index];
-    uint64_t phys_addr = (pfn << PAGE_SHIFT) + HPAGE_OFFSET((uint64_t)addr);
-    return CC_GET_COLOR(phys_addr);
+        uint64_t phys_addr = get_phys_addr(allocator->zone, addr);
+        return CC_GET_COLOR(phys_addr);
 }
 
 static int get_grp(cc_allocator_t *allocator, void *addr){
@@ -73,10 +71,11 @@ cc_allocator_t* cc_allocator_create(int obj_nr, int obj_size,
     void *obj_ptr, *right_bound;
     obj_t *entry;
     while(curr_addr < max_addr){
-        printf("color: %d\n", get_color(allocator, curr_addr));
+        //printf("color: %d va: %016llx pa: %016llx\n", get_color(allocator, curr_addr), (uint64_t)curr_addr, get_phys_addr(allocator->zone, curr_addr));
         obj_ptr = curr_addr;
         curr_addr += HPAGE_SIZE;
         i = 0;
+        printf("Hugepage: %d\n", (curr_addr - allocator->zone->addr) / HPAGE_SIZE);
         while(obj_ptr < curr_addr){
             right_bound = obj_ptr + allocator->grp_colors[i] * CC_PAGE_SIZE;
             while(obj_ptr + allocator->obj_size <= right_bound){
@@ -87,6 +86,9 @@ cc_allocator_t* cc_allocator_create(int obj_nr, int obj_size,
                     return NULL;
                 }
                 entry->addr = obj_ptr;
+                printf("grp: %d color: %d va: %016llx pa: %016llx\n", i, 
+                        get_color(allocator, obj_ptr), (uint64_t)obj_ptr, 
+                        get_phys_addr(allocator->zone, obj_ptr));
                 list_add(&entry->list, &allocator->grps[i]);
                 obj_ptr += allocator->obj_size;
             }
@@ -94,7 +96,6 @@ cc_allocator_t* cc_allocator_create(int obj_nr, int obj_size,
             i++;
         }
     }
-
     return allocator;
 
 mz_error:
@@ -149,3 +150,58 @@ void cc_allocator_free(cc_allocator_t *allocator, void *mem){
     list_add(&entry->list, &allocator->grps[grp_id]);
 }
 
+/////////////////////////
+//testcase
+void testcase_colors(cc_allocator_t *allocator){
+    int i;
+    obj_t *entry;
+    for(i = 0; i < allocator->grp_nr; i++){
+        list_for_each_entry(entry, &allocator->grps[i], list){
+            assert(get_grp(allocator, entry->addr) == i);
+        }
+    }
+}
+
+void testcase_alloc_free(cc_allocator_t *allocator){
+    int i, j;
+    int len[3] = {0};
+    uint64_t addrs[128];
+    int total = 0;
+    char *addr;
+    obj_t *entry;
+    for(i = 0; i < allocator->grp_nr; i++){
+        list_for_each_entry(entry, &allocator->grps[i], list){
+            len[i]++;
+        }
+    }
+    for(i = 0; i < 10; i++){
+        for(j = 0; j < allocator->grp_nr; j++){
+            addr = cc_allocator_alloc(allocator, j);
+            *addr = 'a' + j;
+            addrs[total++] = (uint64_t)addr;
+        }
+    } 
+    testcase_colors(allocator);
+    for(i = 0; i < total; i++){
+        cc_allocator_free(allocator, (void*)addrs[i]);
+    }
+    testcase_colors(allocator);
+    for(i = 0; i < allocator->grp_nr; i++){
+        j = 0;
+        list_for_each_entry(entry, &allocator->grps[i], list){
+            j++;
+        }
+        assert(j == len[i]);
+    }
+}
+/////////////////////////
+#if 1
+int main(int argc, char **argv){
+    int grp_ratio[3] = {1, 2, 1};
+    cc_allocator_t *allocator = cc_allocator_create(100, 38, 3, grp_ratio);
+    testcase_colors(allocator);
+    testcase_alloc_free(allocator);
+    cc_allocator_destroy(allocator);
+    return 0;
+}
+#endif

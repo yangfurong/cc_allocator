@@ -1,6 +1,10 @@
 CC=gcc
 CFLAGS=-O3
 LDFLAGS=
+APP=all
 
-all: cc_allocator.c
+$(APP): cc_allocator.c
 	$(CC) $^ $(CFLAGS) -o $@ $(LDFLAGS)
+
+clean:
+	rm -rf $(APP)

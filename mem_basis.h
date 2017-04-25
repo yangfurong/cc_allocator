@@ -37,6 +37,13 @@ struct memzone_s{
 };
 typedef struct memzone_s memzone_t;
 
+static uint64_t get_phys_addr(memzone_t *mz, void *addr){
+    uint64_t pfn_index = HPAGE_DIFF(mz->addr, addr);
+    uint64_t pfn = mz->pfn_map[pfn_index];
+    uint64_t phys_addr = (pfn << PAGE_SHIFT) + HPAGE_OFFSET((uint64_t)addr);
+    return phys_addr;
+}
+
 static int addr_pfn(void *addr, uint64_t *pfnbuf, int n)
 {
     int fid, i;
