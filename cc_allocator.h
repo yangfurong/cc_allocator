@@ -7,7 +7,7 @@
 //platform dependent
 #define CC_PAGE_SIZE 4096
 #define CC_PAGE_SHIFT 12
-#define CC_CACHE_SIZE (16 * 1024 * 1024)
+#define CC_CACHE_SIZE (256 * 1024)
 #define CC_CACHE_LINE_SIZE 64
 #define CC_CACHE_WAY 8
 ////////////////////////////////////////////

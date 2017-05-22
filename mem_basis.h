@@ -12,9 +12,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+//depend on system setting
+//2M hugepage
 #define HPAGE_SHIFT (21)
 #define HPAGE_SIZE (1 << HPAGE_SHIFT)
-#define MEMORY_SIZE (8 * HPAGE_SIZE)
 
 //addr in uint64_t format
 #define HPAGE_OFFSET(addr) (addr & (HPAGE_SIZE - 1))
@@ -80,7 +81,7 @@ static int addr_pfn(void *addr, uint64_t *pfnbuf, int n)
         {
             pfnbuf[i] = 0;
         }
-        printf("vaddr %p paddr 0x%lx\n", addr + i*HPAGE_SIZE, pfnbuf[i] << PAGE_SHIFT);
+        printf("n: %d vaddr %p paddr 0x%lx\n", i, addr + i*HPAGE_SIZE, pfnbuf[i] << PAGE_SHIFT);
     }
     close(fid);
     return 0;

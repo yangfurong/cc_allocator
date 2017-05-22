@@ -65,17 +65,18 @@ cc_allocator_t* cc_allocator_create(int obj_nr, int obj_size,
         goto mz_error;
     }
 
-    //first color of hugepage is always 0
+    //First color of hugepage is always 0
+    //We assume that a hugepage contain multiple entire cache cycles
+    //obj_sz should be less than size of group
     void *curr_addr = allocator->zone->addr;
     void *max_addr = curr_addr + allocator->zone->size;
     void *obj_ptr, *right_bound;
     obj_t *entry;
     while(curr_addr < max_addr){
-        //printf("color: %d va: %016llx pa: %016llx\n", get_color(allocator, curr_addr), (uint64_t)curr_addr, get_phys_addr(allocator->zone, curr_addr));
         obj_ptr = curr_addr;
         curr_addr += HPAGE_SIZE;
         i = 0;
-        printf("Hugepage: %d\n", (curr_addr - allocator->zone->addr) / HPAGE_SIZE);
+        //printf("Hugepage: %d\n", (curr_addr - allocator->zone->addr) / HPAGE_SIZE);
         while(obj_ptr < curr_addr){
             right_bound = obj_ptr + allocator->grp_colors[i] * CC_PAGE_SIZE;
             while(obj_ptr + allocator->obj_size <= right_bound){
@@ -86,14 +87,16 @@ cc_allocator_t* cc_allocator_create(int obj_nr, int obj_size,
                     return NULL;
                 }
                 entry->addr = obj_ptr;
+#ifdef CC_DEBUG
                 printf("grp: %d color: %d va: %016llx pa: %016llx\n", i, 
                         get_color(allocator, obj_ptr), (uint64_t)obj_ptr, 
                         get_phys_addr(allocator->zone, obj_ptr));
+#endif
                 list_add(&entry->list, &allocator->grps[i]);
                 obj_ptr += allocator->obj_size;
             }
             obj_ptr = right_bound;
-            i++;
+            i = (i + 1) % allocator->grp_nr;
         }
     }
     return allocator;
@@ -133,6 +136,10 @@ void* cc_allocator_alloc(cc_allocator_t *allocator, int grp_id){
         entry = list_entry(pos, obj_t, list);
         ret = entry->addr;
         free(entry);
+#ifdef CC_DEBUG
+        printf("[alloc]grp: %d color: %d va: %016llx pa: %016llx\n", grp_id, get_color(allocator, ret),
+                (uint64_t)ret, get_phys_addr(allocator->zone, ret));
+#endif
         return ret;
     }
     return NULL;
@@ -195,7 +202,7 @@ void testcase_alloc_free(cc_allocator_t *allocator){
     }
 }
 /////////////////////////
-#if 1
+#if 0
 int main(int argc, char **argv){
     int grp_ratio[3] = {1, 2, 1};
     cc_allocator_t *allocator = cc_allocator_create(100, 38, 3, grp_ratio);
